@@ -1,0 +1,62 @@
+--- git commit ---
+44044b0963001962abe5701133427e37b003fffe
+
+
+--- git status ---
+On branch release/3.0.0
+Your branch is up to date with 'origin/release/3.0.0'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/agents/rsl_rl_ppo_cfg.py
+	modified:   source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py
+
+no changes added to commit (use "git add" and/or "git commit -a") 
+
+
+--- git diff ---
+diff --git a/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/agents/rsl_rl_ppo_cfg.py b/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/agents/rsl_rl_ppo_cfg.py
+index a3b43de04..3fb366468 100644
+--- a/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/agents/rsl_rl_ppo_cfg.py
++++ b/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/agents/rsl_rl_ppo_cfg.py
+@@ -51,3 +51,4 @@ class UnitreeGo2FlatPPORunnerCfg(UnitreeGo2RoughPPORunnerCfg):
+         self.experiment_name = "unitree_go2_flat"
+         self.actor.hidden_dims = [128, 128, 128]
+         self.critic.hidden_dims = [128, 128, 128]
++        self.obs_groups = {"actor": ["policy"], "critic": ["critic"]}
+diff --git a/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py b/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py
+index 4237f735d..2d93c2f0e 100644
+--- a/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py
++++ b/source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py
+@@ -5,8 +5,13 @@
+ 
+ """Configuration for the Unitree Go2 velocity-tracking environment on flat terrain."""
+ 
++import copy
++
++from isaaclab.managers import ObservationTermCfg as ObsTerm
+ from isaaclab.utils import configclass
+ 
++from isaaclab_tasks.core.velocity import mdp
++
+ from .rough_env_cfg import UnitreeGo2RoughEnvCfg
+ 
+ 
+@@ -28,9 +33,14 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
+         self.scene.height_scanner = None
+         # observations
+         self.observations.policy.height_scan = None
++        # asymmetric critic: critic keeps true base velocity, actor is blind
++        self.observations.critic = copy.deepcopy(self.observations.policy)
++        self.observations.critic.base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
++        self.observations.critic.enable_corruption = False
++        self.observations.policy.base_lin_vel = None
+         # rewards
+         self.rewards.flat_orientation_l2.weight = -2.5
+         self.rewards.feet_air_time.weight = 0.25
+         self.rewards.base_height_l2.params["sensor_cfg"] = None
+         # curriculum
+-        self.curriculum.terrain_levels = None
++        self.curriculum.terrain_levels = None
+\ No newline at end of file

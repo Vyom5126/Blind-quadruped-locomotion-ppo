@@ -1,0 +1,12 @@
+--- git commit ---
+44044b0963001962abe5701133427e37b003fffe
+
+
+--- git status ---
+On branch release/3.0.0
+Your branch is up to date with 'origin/release/3.0.0'.
+
+nothing to commit, working tree clean 
+
+
+--- git diff ---
