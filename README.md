@@ -63,7 +63,8 @@ The default 300 iterations leaves the policy undertrained; 1,500 iterations cuts
 ## Repository contents
 
 ```
-configs/   git diffs of each variant against stock Isaac Lab 3.0
+configs/   Isaac Lab's auto-saved run records: base commit, git status, then the patch
+           (*_blind.diff, *_asym.diff; the two 2026-10-31 files are the unmodified privileged runs)
 scripts/   log_velocity_data.py (rollout logger), train_velocity_estimator.py
 results/   estimator results.json
 notes/     ppo_annotated.py (rsl_rl PPO with block-by-block notes)
@@ -75,7 +76,8 @@ media/     estimator plot
 ```powershell
 git clone https://github.com/isaac-sim/IsaacLab.git --branch release/3.0.0
 cd IsaacLab
-git apply configs\2026-11-01_12-45-25_asym.diff   # or ..._blind.diff; skip for the privileged baseline
+# make the edits shown after '--- git diff ---' in configs/*_asym.diff (or *_blind.diff);
+# skip for the privileged baseline. The files include a header, so plain `git apply` will not work.
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-UnitreeGo2 physics=newton_mjwarp --num_envs 4096 --max_iterations 1500
 uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-UnitreeGo2 physics=newton_mjwarp --checkpoint latest --viz newton_gl --num_envs 16
 
