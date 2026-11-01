@@ -20,7 +20,24 @@ All runs: 4,096 parallel environments, 1,500 PPO iterations (~147M environment s
 
 - **Blindness costs tracking, not stability.** Removing velocity left the fall rate unchanged but raised velocity-tracking error by about 47%.
 - **A privileged critic recovers about 60% of that loss with no new sensor.** In variant C the deployed actor sees exactly the same inputs as in B. Only the critic, which exists during training alone, receives the true velocity, giving more accurate advantage estimates.
-- **The remaining gap (0.139 vs 0.117 m/s) is what an explicit learned velocity estimator would target**, the next step of this project.
+- **The remaining gap (0.139 vs 0.117 m/s) is what an explicit learned velocity estimator targets** (next section).
+
+## Learned velocity estimator (offline)
+
+Can the missing velocity be recovered from the signals a blind robot *does* have? I logged 384,000 samples (256 robots x 30 s) from the blind-actor policy (variant C), recording the actor's 45 blind inputs and the simulator's true base velocity. A small MLP (256-128-3, ~45k parameters) was then trained to predict body-frame velocity from a short history of those inputs. Test robots were held out entirely (80/20 split by robot, not by time step).
+
+| Predictor | vx RMSE | vy RMSE | vz RMSE |
+| --- | --- | --- | --- |
+| Mean velocity (no information) | 0.542 m/s | 0.557 m/s | 0.071 m/s |
+| Commanded velocity ("robot does what it's told") | 0.113 m/s | 0.126 m/s | 0.071 m/s |
+| MLP, 1-step input (20 ms) | 0.062 m/s | 0.047 m/s | 0.040 m/s |
+| **MLP, 5-step history (100 ms)** | **0.039 m/s** | **0.033 m/s** | **0.029 m/s** |
+
+![Velocity estimator results](media/velocity_estimator.png)
+
+- **The estimator recovers velocity from IMU and joint signals alone.** With 0.1 s of history it is about 3x more accurate than assuming the robot follows its command (forward error 0.039 vs 0.113 m/s).
+- **History matters.** Going from 1 step to 5 steps cuts forward-velocity error by 38%, consistent with velocity being inferred from how joint and IMU signals evolve over time.
+- **This is offline only.** The estimator has not yet been fed back into the policy. Closing that loop (training it concurrently with PPO, as in Ji et al. 2022) is the next step.
 
 ## Training length
 
@@ -47,9 +64,10 @@ The default 300 iterations leaves the policy undertrained; 1,500 iterations cuts
 
 ```
 configs/   git diffs of each variant against stock Isaac Lab 3.0
+scripts/   log_velocity_data.py (rollout logger), train_velocity_estimator.py
+results/   estimator results.json
 notes/     ppo_annotated.py (rsl_rl PPO with block-by-block notes)
-           PPO_Explained_Go2.pdf (2-page explainer)
-media/     gait video and training curves
+media/     estimator plot
 ```
 
 ## Reproduce
@@ -57,9 +75,13 @@ media/     gait video and training curves
 ```powershell
 git clone https://github.com/isaac-sim/IsaacLab.git --branch release/3.0.0
 cd IsaacLab
-git apply path\to\configs\<variant>.diff     # skip for the privileged baseline
+git apply configs\2026-11-01_12-45-25_asym.diff   # or ..._blind.diff; skip for the privileged baseline
 uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-UnitreeGo2 physics=newton_mjwarp --num_envs 4096 --max_iterations 1500
 uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-UnitreeGo2 physics=newton_mjwarp --checkpoint latest --viz newton_gl --num_envs 16
+
+# velocity estimator (needs the asym config applied; copy scripts/ into IsaacLab/scripts)
+uv run isaaclab -p scripts/log_velocity_data.py --task Isaac-Velocity-Flat-UnitreeGo2 physics=newton_mjwarp --num_envs 256 --checkpoint <asym model_1499.pt> --steps 1500
+uv run --with matplotlib python scripts/train_velocity_estimator.py --data logs/velocity_data.pt
 ```
 
 ## Limitations
@@ -67,13 +89,16 @@ uv run isaaclab play --rl_library rsl_rl --task Isaac-Velocity-Flat-UnitreeGo2 p
 - One seed per variant; differences of a few percent (falls, yaw) are within run-to-run noise.
 - Flat ground with the default, mild domain randomization. The gap is likely larger on rough terrain and under real disturbances.
 - Evaluated in simulation only; no hardware deployment.
+- Estimator data was logged without push disturbances, from a single policy; accuracy under pushes, payloads and other gaits is untested.
 - The default randomization is much weaker than the target problem statement (10 kg payload, COM shifts up to 14 cm, 250 N pushes, unknown friction).
 
 ## Next steps
 
-1. A learned velocity estimator trained concurrently with PPO (after Ji et al. 2022, DreamWaQ), to close the remaining gap.
+1. Feed the estimator into the actor and train it concurrently with PPO (after Ji et al. 2022, DreamWaQ), then measure whether it closes the remaining tracking gap.
 2. Domain randomization matched to the target disturbances: payload, COM offset, friction, push forces.
 3. Rough terrain with the height scan removed, to keep the policy blind.
 4. Multiple seeds per variant for confidence intervals.
 
+## Author
 
+Vyom Divecha, B.Tech Mechanical Engineering, IIT Dharwad
